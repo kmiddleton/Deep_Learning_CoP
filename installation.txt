@@ -18,3 +18,6 @@ pip install graphviz
 
 # For VSCode rendering with Quarto
 conda install yaml pyyaml nbclient nbformat
+
+# Conda envs
+# https://thedatasavvycorner.com/blogs/08-quarto-conda-env
