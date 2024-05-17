@@ -1,0 +1,16 @@
+---
+title: "Untitled"
+format: html
+---
+
+## Setup Code
+
+```{python}
+import numpy as np
+import graphviz
+```
+
+```{python}
+print(2+2)
+```
+
