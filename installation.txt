@@ -1,0 +1,20 @@
+# Setup
+
+# Windows with GPU
+conda create --name deeplearn python=3.11 numpy matplotlib pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+pip install graphviz
+
+# Window without GPU
+conda create --name deeplearn python=3.11 numpy matplotlib pytorch torchvision torchaudio cpuonly -c pytorch
+pip install graphviz
+
+# MacOS
+conda create --name deeplearn python=3.11 numpy matplotlib pytorch::pytorch torchvision torchaudio -c pytorch
+pip install graphviz
+
+# Linux
+conda create --name deeplearn python=3.11 ipython ipykernel numpy matplotlib pytorch torchvision torchaudio cpuonly -c pytorch
+pip install graphviz
+
+# For VSCode rendering with Quarto
+conda install yaml pyyaml nbclient nbformat
