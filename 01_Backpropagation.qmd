@@ -21,12 +21,12 @@ print(2+2)
 Github library `karpathy/micrograd`
 
 - Autograd engine
-- Implements backpropagration
+- Implements back-propagation
 - Efficiently evaluate the gradient of a loss function wrt the weights of a neural network
 - Tune the weights of a neural network efficiently
 - Builds the graph automatically
     - Forward and backward pass
-- Backward pass: chain rule to caculate the derivatives
+- Backward pass: chain rule to calculate the derivatives
     - How values effect others through the gradient
 
 Neural networks
@@ -203,7 +203,7 @@ def draw_dot(root):
         uid = str(id(n))
 
         # for any value in the graph create a rectangular record
-        dot.name(name = uid, label = "{ data %.4f }" % n.data, shape='record')
+        dot.node(name = uid, label = "{ data %.4f }" % (n.data, ), shape='record')
         if n._op:
             # if the value is a result of an operation, create an op node
             dot.node(name = uid + n._op, label = n._op)
@@ -218,3 +218,4 @@ def draw_dot(root):
 
 draw_dot(d)
 ```
+
