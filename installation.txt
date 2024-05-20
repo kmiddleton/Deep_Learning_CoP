@@ -1,11 +1,11 @@
 # Setup
 
 # Windows with GPU
-conda create --name deeplearn python=3.11 numpy matplotlib pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+conda create --name deeplearn python=3.11 ipython ipykernel numpy matplotlib pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 pip install graphviz
 
 # Window without GPU
-conda create --name deeplearn python=3.11 numpy matplotlib pytorch torchvision torchaudio cpuonly -c pytorch
+conda create --name deeplearn python=3.11 ipython ipykernel numpy matplotlib pytorch torchvision torchaudio cpuonly -c pytorch
 pip install graphviz
 
 # MacOS
