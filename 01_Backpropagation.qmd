@@ -306,6 +306,8 @@ tanh activation function
 
 
 ```{python}
+# make a new empty plot
+plt.figure()
 plt.plot(np.arange(-5, 5, 0.2), np.tanh(np.arange(-5, 5, 0.2)))
 plt.grid()
 ```
