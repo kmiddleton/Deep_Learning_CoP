@@ -142,10 +142,12 @@ print('slope', (d2 - d1) / h)
 
 ```{python}
 class Value:
-    def __init__(self, data, _children=(), _op=''):
+    def __init__(self, data, _children=(), _op='', label=''):
         self.data = data
+        self.grad = 0.0
         self._prev = set(_children)
         self._op = _op
+        self.label = label
 
     def __repr__(self):
         return f"Value(data={self.data})"
@@ -158,11 +160,11 @@ class Value:
         out = Value(self.data * other.data, (self, other), '*')
         return out
 
-a = Value(2.0)
-b = Value(-3.0)
+a = Value(2.0, label = 'a')
+b = Value(-3.0, label = 'b')
 print(a + b)
 
-c = Value(10.0)
+c = Value(10.0, label = 'c')
 print(a * b)
 ```
 
@@ -173,10 +175,14 @@ We now know how each value was created
 ?? Should be -6 and 10, not 10 and -6 ??
 
 ```{python}
-d = a * b + c
-print(d)
-print(d._prev)
-print(d._op)
+e = a * b
+e.label = 'e'
+d = e + c
+d.label = 'd'
+f = Value(-2.0, label = 'f')
+L = d * f
+L.label = 'L'
+print(L)
 ```
 
 ## Visualization of expression graphs
@@ -203,7 +209,9 @@ def draw_dot(root):
         uid = str(id(n))
 
         # for any value in the graph create a rectangular record
-        dot.node(name = uid, label = "{ data %.4f }" % (n.data, ), shape='record')
+        dot.node(name = uid,
+                 label = "{ %s | data %.4f | grad %0.4f}" % (n.label, n.data, n.grad), 
+                 shape='record')
         if n._op:
             # if the value is a result of an operation, create an op node
             dot.node(name = uid + n._op, label = n._op)
@@ -216,6 +224,25 @@ def draw_dot(root):
     
     return dot
 
-draw_dot(d)
+draw_dot(L)
 ```
+
+Output of the forward pass is `{python} print(L.data)`.
+
+## Back propagation
+
+Start at $L$ and calculate the gradient in reverse.
+
+- Derivative of each node wrt $L$
+- Data is fixed, so we don't calculate the derivatives for data
+
+$$
+\frac{dL}{dL} = 1
+$$
+
+Chain rule
+
+$$
+\frac{dz}{dx} = \frac{dz}{dy} \cdot \frac{dy}{dx}
+$$
 
