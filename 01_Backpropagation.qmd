@@ -145,6 +145,7 @@ class Value:
     def __init__(self, data, _children=(), _op='', label=''):
         self.data = data
         self.grad = 0.0
+        self._backward = lambda: None
         self._prev = set(_children)
         self._op = _op
         self.label = label
@@ -154,11 +155,52 @@ class Value:
     
     def __add__(self, other):
         out = Value(self.data + other.data, (self, other), '+')
+
+        def _backward():
+            self.grad += 1.0 * out.grad
+            other.grad += 1.0 * out.grad
+        
+        out._backward = _backward
+
         return out
 
     def __mul__(self, other):
         out = Value(self.data * other.data, (self, other), '*')
+
+        def _backward():
+            self.grad += other.data * out.grad
+            other.grad += self.data * out.grad
+
+        out._backward = _backward
+
         return out
+
+    def tanh(self):
+        x = self.data
+        t = (math.exp(2 * x) - 1) / (math.exp(2 * x) + 1)
+        out = Value(t, (self, ), 'tanh')
+
+        def _backward():
+            self.grad += (1 - t ** 2) * out.grad
+
+        out._backward = _backward
+        return out
+
+    def backward(self):
+        topo = []
+        visited = set()
+        def build_topo(v):
+            if v not in visited:
+                visited.add(v)
+                for child in v._prev:
+                    build_topo(child)
+                topo.append(v)
+        build_topo(self)
+
+        self.grad = 1.0
+        for node in reversed(topo):
+            node._backward()
+
 
 a = Value(2.0, label = 'a')
 b = Value(-3.0, label = 'b')
@@ -229,12 +271,13 @@ draw_dot(L)
 
 Output of the forward pass is `{python} print(L.data)`.
 
-## Back propagation
+## Back-propagation
 
 Start at $L$ and calculate the gradient in reverse.
 
 - Derivative of each node wrt $L$
 - Data is fixed, so we don't calculate the derivatives for data
+- Recursively multiply the derivatives along the path
 
 $$
 \frac{dL}{dL} = 1
@@ -246,3 +289,105 @@ $$
 \frac{dz}{dx} = \frac{dz}{dy} \cdot \frac{dy}{dx}
 $$
 
+ Gradient gives you the power to influence the output.
+
+ ## Back-propagation through a neuron
+
+tanh activation function
+
+- Inputs are squashed to the range -1 and 1
+- Useful in the range -2 to 2
+
+
+```{python}
+plt.plot(np.arange(-5, 5, 0.2), np.tanh(np.arange(-5, 5, 0.2)))
+plt.grid()
+```
+
+Weights
+
+
+```{python}
+# inputs x1 and x2
+x1 = Value(2.0, label = 'x1')
+x2 = Value(0.0, label = 'x2')
+
+# weights w1 and w2
+w1 = Value(-3.0, label = 'w1')
+w2 = Value(1.0, label = 'w2')
+
+# b is the bias of the neuron
+b = Value(6.8813735870195432, label = 'b')
+
+x1w1 = x1 * w1; x1w1.label = 'x1 * w1'
+x2w2 = x2 * w2; x2w2.label = 'x2 * w2'
+
+x1w1x2w1 = x1w1 + x2w2; x1w1x2w1.label = '(x1 * w1) + (x2 * w2)'
+
+# n is the cell body activation without the activation function
+n = x1w1x2w1 + b; n.label = 'n'
+
+draw_dot(n)
+
+# Implement tanh above
+o = n.tanh(); o.label = 'o'
+draw_dot(o)
+```
+
+Derivatives on the weights is the important part
+
+Back-propagation manually from $o$:
+
+```{python}
+# o.grad = 1.0
+# n.grad = 0.5
+# x1w1x2w1.grad = 0.5
+# b.grad = 0.5
+# x1w1.grad = 0.5
+# x2w2.grad = 0.5
+# x2.grad = w2.data * x2w2.grad
+# w2.grad = x2.data * x2w2.grad
+# x1.grad = w1.data * x1w1.grad
+# w1.grad = x1.data * x1w1.grad
+
+# # o = tanh(n)
+# # ? do / dn = 1 - tanh(n)**2
+
+# 1 - o.data ** 2
+
+# draw_dot(o)
+```
+
+## Backward pass automatically
+
+Implement `backward` above
+
+```{python}
+o.grad = 1.0
+o._backward()
+n._backward()
+b._backward()
+x1w1x2w1._backward()
+x1w1._backward()
+x2w2._backward()
+draw_dot(o)
+```
+
+We don't want to have to set `o.grad` manually. Use topological sort of the DAG left to right.
+
+```{python}
+o.backward()
+draw_dot(o)
+```
+
+Bug: Gradient is incorrect (should be 2). Gradient is overwritten because self and other point to the same memory location.
+
+- Need to accumulate the derivatives `+=`.
+
+
+```{python}
+a = Value(3.0, label = 'a')
+b = a + a; b.label = 'b'
+b.backward()
+draw_dot(b)
+```
