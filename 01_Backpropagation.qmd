@@ -202,8 +202,8 @@ def draw_dot(root):
     for n in nodes:
         uid = str(id(n))
 
-        # for any value in teh graph create a rectangular record
-        dot.name(name = uid, label = "{ data %.4f }" % (n.data, ), shape='record')
+        # for any value in the graph create a rectangular record
+        dot.name(name = uid, label = "{ data %.4f }" % n.data, shape='record')
         if n._op:
             # if the value is a result of an operation, create an op node
             dot.node(name = uid + n._op, label = n._op)
