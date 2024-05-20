@@ -1,16 +1,220 @@
 ---
-title: "Untitled"
+title: "Micrograd from Scratch"
 format: html
 ---
 
 ## Setup Code
 
 ```{python}
+import math
 import numpy as np
-import graphviz
+import matplotlib.pyplot as plt
+from graphviz import Digraph
 ```
 
 ```{python}
 print(2+2)
 ```
 
+## Micrograd
+
+Github library `karpathy/micrograd`
+
+- Autograd engine
+- Implements backpropagration
+- Efficiently evaluate the gradient of a loss function wrt the weights of a neural network
+- Tune the weights of a neural network efficiently
+- Builds the graph automatically
+    - Forward and backward pass
+- Backward pass: chain rule to caculate the derivatives
+    - How values effect others through the gradient
+
+Neural networks
+
+- Just mathematical expression
+- Data + weights $\rightarrow$ Outputs
+- Backprop is not specific to neural networks
+
+Micrograd uses scalars, but torch will use tensors.
+
+- Math does not change on tensors
+- Tensors are arrays of tensors
+- Parallelized
+- Everything else is efficiency
+
+## Derivatives
+
+```{python}
+def f(x):
+    return 3 * x ** 2 - 4 * x + 5
+```
+
+```{python}
+f(3.0)
+
+xs = np.arange(-5, 5.25, 0.25)
+ys = f(xs)
+
+plt.plot(xs, ys)
+```
+
+Derivatives without derivatives.
+
+- NN doesn't do this symbolically.
+- What is the sensitivity of a function at a certain value of $x$
+
+Numerical approximation of the slope at $x$:
+
+```{python}
+h = 0.001
+x = 3.0
+
+(f(x + h) - f(x)) / h
+```
+
+- Rise: $(f(x + h) - f(x))$
+- Run: $h$
+
+Negative slopes at $x = -3$:
+
+```{python}
+h = 0.001
+x = -3.0
+
+(f(x + h) - f(x)) / h
+```
+
+Zero slope at $x = 2/3$
+
+```{python}
+h = 0.001
+x = 2.0 / 3.0
+
+(f(x + h) - f(x)) / h
+```
+
+## Function with three scalar inputs
+
+```{python}
+a = 2.0
+b = -3.0
+c = 10.0
+d = a * b + c
+print(d)
+```
+
+Derivative of $d$ as a function of $a$, $b$, and $c$
+
+```{python}
+h = 0.001
+
+# inputs
+a = 2.0
+b = -3.0
+c = 10
+
+d1 = a * b + c
+a += h
+d2 = a * b + c
+
+print('d1', d1)
+print('d2', d2)
+print('slope', (d2 - d1) / h)
+
+d1 = a * b + c
+b += h
+d2 = a * b + c
+
+print('d1', d1)
+print('d2', d2)
+print('slope', (d2 - d1) / h)
+
+d1 = a * b + c
+c += h
+d2 = a * b + c
+
+print('d1', d1)
+print('d2', d2)
+print('slope', (d2 - d1) / h)
+```
+
+## Data structures to hold values
+
+```{python}
+class Value:
+    def __init__(self, data, _children=(), _op=''):
+        self.data = data
+        self._prev = set(_children)
+        self._op = _op
+
+    def __repr__(self):
+        return f"Value(data={self.data})"
+    
+    def __add__(self, other):
+        out = Value(self.data + other.data, (self, other), '+')
+        return out
+
+    def __mul__(self, other):
+        out = Value(self.data * other.data, (self, other), '*')
+        return out
+
+a = Value(2.0)
+b = Value(-3.0)
+print(a + b)
+
+c = Value(10.0)
+print(a * b)
+```
+
+## Previous, children, operation
+
+We now know how each value was created
+
+?? Should be -6 and 10, not 10 and -6 ??
+
+```{python}
+d = a * b + c
+print(d)
+print(d._prev)
+print(d._op)
+```
+
+## Visualization of expression graphs
+
+```{python}
+def trace(root):
+    nodes, edges = set(), set()
+    
+    # Build a set of nodes and edges
+    def build(v):
+        if v not in nodes:
+            nodes.add(v)
+            for child in v._prev:
+                edges.add((child, v))
+                build(child)
+    build(root)
+    return nodes, edges
+      
+def draw_dot(root):
+    dot = Digraph(format='svg', graph_attr={'rankdir': 'LR'}) # L to R
+    nodes, edges = trace(root)
+
+    for n in nodes:
+        uid = str(id(n))
+
+        # for any value in teh graph create a rectangular record
+        dot.name(name = uid, label = "{ data %.4f }" % (n.data, ), shape='record')
+        if n._op:
+            # if the value is a result of an operation, create an op node
+            dot.node(name = uid + n._op, label = n._op)
+
+            # and connect this node to it
+            dot.edge(uid + n._op, uid)
+    for n1, n2, in edges:
+        # connect n1 to the op node of n2
+        dot.edge(str(id(n1)), str(id(n2)) + n2._op)
+    
+    return dot
+
+draw_dot(d)
+```
