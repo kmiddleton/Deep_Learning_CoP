@@ -1,6 +1,6 @@
 # Setup
 
-# Use libmamba
+# Use libmamba, which seems to handle solving the environment better
 conda install -n base conda-libmamba-solver
 conda config --set solver libmamba
 
