@@ -81,7 +81,7 @@ What characters are most likely to follow others?
 - Need counts
 
 ```{python}
-b
+# b
 ```
 
 Most and least common pairs
@@ -89,7 +89,7 @@ Most and least common pairs
 Sort on count of elements:
 
 ```{python}
-sorted(b.items(), key = lambda kv: -kv[1])
+# sorted(b.items(), key = lambda kv: -kv[1])[:40]
 ```
 
 Store in 2D pytorch array
@@ -157,14 +157,14 @@ plt.axis("off");
 
 Observations
 
-- '<S>' can't be outside of the 1st
-- '<E>' can't be outside the last
+- `<S>` can't be outside of the 1st
+- `<E>` can't be outside the last
 
-So we have wasted space. An entire column of zeros and a row of zeros. Also '<S>' and '<E>' are "wordy".
+So we have wasted space. An entire column of zeros and a row of zeros. Also `<S>` and `<E>` are "wordy".
 
 Fixes:
 
-- Only 1 special character '.'
+- Only 1 special character `.`
 - Move to position 0
 
 ```{python}
