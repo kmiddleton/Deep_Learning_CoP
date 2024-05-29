@@ -3,7 +3,7 @@ title: "Micrograd from Scratch"
 format: html
 ---
 
-**Python: Select Interpreter** if the wrong env is selected.
+**Python: Select Interpreter** if the wrong env is selected when rendering.
 
 
 ## Setup Code
