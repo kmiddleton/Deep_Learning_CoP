@@ -1,0 +1,722 @@
+---
+title: "Neural Network Language Models"
+format: html
+---
+
+
+**Python: Select Interpreter** if the wrong env is selected when rendering.
+
+`makemore`: https://github.com/karpathy/makemore
+
+- Makes more of things that you give it
+- 32,000 names in `names.txt`
+    - Sound name-like but are unique
+- Character-level language model
+    - Models a sequence and knows how to predict the next
+- LMNNs
+    - Bigram (lookup character prediction)
+    - Bag of words
+    - Multi-layer perceptron
+    - Recurrent NN
+    - GRU?
+    - Transformer (e.g., GPT2)
+
+## Setup Code
+
+```{python}
+import math
+import numpy as np
+import matplotlib.pyplot as plt
+import torch
+import torch.nn.functional as F
+from collections import Counter
+```
+
+Open data and generate a list of words
+
+```{python}
+words = open('names.txt', 'r').read().splitlines()
+words[:10]
+```
+
+Some data
+
+```{python}
+print(f'Number of words: {len(words)}')
+print(f'Shortest word: {min(len(w) for w in words)}')
+print(f'Longest word: {max(len(w) for w in words)}')
+```
+
+Character sequences
+
+- What characters are most likely to come before others?
+- What characters are likely to end a word?
+- What characters are likely to follow other sequences?
+
+Bigram model
+
+- Two characters as a time
+- Given on character, what is the most likely next in the sequence?
+- Simple and weak
+
+"Moving window"
+
+```{python}
+# Dictionary to hold bigrams
+b = {}
+
+for w in words:
+    chs = ['<S>'] + list(w) + ['<E>']
+    for ch1, ch2 in zip(chs, chs[1:]):
+        bigram = (ch1, ch2)
+        b[bigram] = b.get(bigram, 0) + 1
+        # print(ch1, ch2)
+```
+
+- `list(w)` is the individual characters as a list 
+- `zip(chs, chs[1:])` creates an iterator of multiple iterators and drops out when the lengths don't match (so you don't have to do anything to handle the end of the string)
+
+What characters are most likely to follow others?
+
+- Need counts
+
+```{python}
+b
+```
+
+Most and least common pairs
+
+Sort on count of elements:
+
+```{python}
+sorted(b.items(), key = lambda kv: -kv[1])
+```
+
+Store in 2D pytorch array
+
+```{python}
+N = torch.zeros((28, 28), dtype = torch.int32)
+```
+
+Need lookup table for letters (26 + 2) to integers
+
+- `''.join(words)` is a giant string with all the names
+- `set()` makes the set, discarding duplicates
+- `stoi` does the string to integer mapping
+
+```{python}
+chars = sorted(list(set(''.join(words))))
+stoi = {s:i for i, s in enumerate(chars)}
+stoi['<S>'] = 26
+stoi['<E>'] = 27
+stoi
+```
+
+- Get integers for `ch1` and `ch2` from `stoi` lookup
+- Increment `N` at the correct positions (`N` is initialized to zeros)
+
+```{python}
+for w in words:
+    chs = ['<S>'] + list(w) + ['<E>']
+    for ch1, ch2 in zip(chs, chs[1:]):
+        ix1 = stoi[ch1]
+        ix2 = stoi[ch2]
+        N[ix1, ix2] += 1
+```
+
+Visualization
+
+```{python}
+plt.imshow(N)
+```
+
+Reverse the dictionary
+
+```{python}
+itos = {i:s for s, i in stoi.items()}
+itos
+```
+
+Nicer representation
+
+```{python}
+plt.figure(figsize = (16, 16))
+plt.imshow(N, cmap = "Blues")
+for ii in range(28):
+    for jj in range(28):
+        # Bigram character representation
+        chrstr = itos[ii] + itos[jj]
+
+        # plot bigram text
+        plt.text(jj, ii, chrstr, ha = "center", va = "bottom", color = "gray")
+
+        # plot count; .item() return the value rather than the tensor
+        plt.text(jj, ii, N[ii, jj].item(), ha = "center", va = "top", color = "gray")
+plt.axis("off");
+```
+
+Observations
+
+- '<S>' can't be outside of the 1st
+- '<E>' can't be outside the last
+
+So we have wasted space. An entire column of zeros and a row of zeros. Also '<S>' and '<E>' are "wordy".
+
+Fixes:
+
+- Only 1 special character '.'
+- Move to position 0
+
+```{python}
+N = torch.zeros((27, 27), dtype = torch.int32)
+
+chars = sorted(list(set(''.join(words))))
+stoi = {s:i+1 for i, s in enumerate(chars)}
+stoi['.'] = 0
+
+itos = {i:s for s, i in stoi.items()}
+
+stoi
+```
+
+Updating code above
+
+```{python}
+for w in words:
+    chs = ['.'] + list(w) + ['.']
+    for ch1, ch2 in zip(chs, chs[1:]):
+        ix1 = stoi[ch1]
+        ix2 = stoi[ch2]
+        N[ix1, ix2] += 1
+
+```
+
+
+```{python}
+plt.figure(figsize = (16, 16))
+plt.imshow(N, cmap = "Blues")
+for ii in range(27):
+    for jj in range(27):
+        # Bigram character representation
+        chrstr = itos[ii] + itos[jj]
+
+        # plot bigram text
+        plt.text(jj, ii, chrstr, ha = "center", va = "bottom", color = "gray")
+
+        # plot count; .item() return the value rather than the tensor
+        plt.text(jj, ii, N[ii, jj].item(), ha = "center", va = "top", color = "gray")
+plt.axis("off");
+```
+
+- Row 1: Counts for initial letters
+- Column 1: Counts for ending letters
+
+This is the information we need to sample from the bigram model.
+
+```{python}
+# Raw counts
+N[0, :]
+
+# Normalize to counts
+p = N[0, :].float()
+p = p / p.sum()
+p
+```
+
+Sampling from the distribution using `torch.multinomial()` using a generator object.
+
+Example using $U(3, 0, 1)$
+
+```{python}
+g = torch.Generator().manual_seed(2147483647)
+p = torch.rand(3, generator=g)
+p = p / p.sum()
+p
+```
+
+Draw from the distribution using `torch.multinomial()`
+
+```{python}
+torch.multinomial(p, num_samples=20, replacement=True, generator=g)
+```
+
+Check percentages
+
+```{python}
+U = torch.multinomial(p, num_samples=int(1e6), replacement=True, generator=g)
+print(Counter(U.tolist()))
+```
+
+Back to the names list.
+
+Sample the first letter:
+
+```{python}
+p = N[0, :].float()
+p = p / p.sum()
+
+g = torch.Generator().manual_seed(2147483647)
+ix = torch.multinomial(p, num_samples=1, replacement=True, generator=g).item()
+print(f'Index = {ix}, Char = {itos[ix]}')
+```
+
+Loop through:
+
+```{python}
+g = torch.Generator().manual_seed(2147483647)
+
+for ii in range(20):
+  out = []
+  ix = 0
+  while True:
+      p = N[ix].float()
+      p = p / sum(p)
+      ix = torch.multinomial(p,
+                             num_samples=1,
+                             replacement=True,
+                             generator=g).item()
+      out.append(itos[ix])
+      if ix == 0:
+          break
+  print(''.join(out))
+```
+
+This is terrible, but the model is working. Setting all the probabilities to equal is far worse.
+
+Improvements:
+
+- Create a matrix of probabilities
+
+```{python}
+
+P = N.float()
+
+# Rowsums (27 x 1 vector of counts)
+# dim=0 means reduce row dimensions: condense all rows = sum by col
+# dim=1 means reduce col dimensions: condense cols= sum by row
+
+P.sum(dim=1, keepdim=True)
+```
+
+Need to check the math about division for broadcasting
+
+- 27 x 27 divided by 27 by 1
+
+Align dimensions on the right. Start at the right and move left.
+
+- Are the values identical? *or*
+- Is one value 1?
+
+Broadcasting internally makes the column vector into a matrix by repeating rows
+
+```{python}
+P = N.float()
+
+# in place operation so we don't use more memory
+P /= P.sum(dim=1, keepdim=True)
+print(f'Row 1: {P[0].sum()}\nRow 2: {P[1].sum()}')
+```
+
+Practice broadcasting.
+
+```{python}
+g = torch.Generator().manual_seed(2147483647)
+
+for ii in range(5):
+  out = []
+  ix = 0
+  while True:
+      p = P[ix]
+      ix = torch.multinomial(p,
+                             num_samples=1,
+                             replacement=True,
+                             generator=g).item()
+      out.append(itos[ix])
+      if ix == 0:
+          break
+  print(''.join(out))
+```
+
+Quality of the model (training loss)
+
+Calculate the log-probabilities for each bigram and the likelihood:
+
+- calculate log of probability
+- increment the log_likelihood
+- increment `n` for normalization later
+
+```{python}
+log_likelihood = 0
+n = 0
+
+for w in words:
+    chs = ['.'] + list(w) + ['.']
+    for ch1, ch2 in zip(chs, chs[1:]):
+        ix1 = stoi[ch1]
+        ix2 = stoi[ch2]
+        prob = P[ix1, ix2]
+        logprob = torch.log(prob)
+        log_likelihood += logprob
+        n += 1
+        # print(f'{ch1}{ch2}: {prob:.4f} {logprob:.4f}')
+
+nll = -log_likelihood
+print(f'{log_likelihood=}')
+print(f'{nll=}')
+print(f'Normalized log-likelihood: {nll / n:.4f}')
+```
+
+Normalized log-likelihood will be the loss function (lower is better).
+
+- Later we will not use the bigram probabilities directly.
+- We will allow the neural network for determine the probabilities.
+
+Test a single word
+
+```{python}
+log_likelihood = 0
+n = 0
+
+for w in ['kevin']:
+    chs = ['.'] + list(w) + ['.']
+    for ch1, ch2 in zip(chs, chs[1:]):
+        ix1 = stoi[ch1]
+        ix2 = stoi[ch2]
+        prob = P[ix1, ix2]
+        logprob = torch.log(prob)
+        log_likelihood += logprob
+        n += 1
+        print(f'{ch1}{ch2}: {prob:.4f} {logprob:.4f}')
+
+nll = -log_likelihood
+print(f'{log_likelihood=}')
+print(f'{nll=}')
+print(f'Normalized log-likelihood: {nll / n:.4f}')
+```
+
+This will break for bigrams that don't exist ('jq') with zero counts.
+
+Model smoothing adds a count of >= 1 everywhere.
+
+```{python}
+P = (N + 1).float()
+
+# in place operation so we don't use more memory
+P /= P.sum(dim=1, keepdim=True)
+
+log_likelihood = 0
+n = 0
+
+for w in ['kevin']:
+    chs = ['.'] + list(w) + ['.']
+    for ch1, ch2 in zip(chs, chs[1:]):
+        ix1 = stoi[ch1]
+        ix2 = stoi[ch2]
+        prob = P[ix1, ix2]
+        logprob = torch.log(prob)
+        log_likelihood += logprob
+        n += 1
+        print(f'{ch1}{ch2}: {prob:.4f} {logprob:.4f}')
+
+nll = -log_likelihood
+print(f'{log_likelihood=}')
+print(f'{nll=}')
+print(f'Normalized log-likelihood: {nll / n:.4f}')
+
+for w in ['zrqas']:
+    chs = ['.'] + list(w) + ['.']
+    for ch1, ch2 in zip(chs, chs[1:]):
+        ix1 = stoi[ch1]
+        ix2 = stoi[ch2]
+        prob = P[ix1, ix2]
+        logprob = torch.log(prob)
+        log_likelihood += logprob
+        n += 1
+        print(f'{ch1}{ch2}: {prob:.4f} {logprob:.4f}')
+
+nll = -log_likelihood
+print(f'{log_likelihood=}')
+print(f'{nll=}')
+print(f'Normalized log-likelihood: {nll / n:.4f}')
+```
+
+
+## Bigram NN
+
+Approach this same problem from the neural network framework.
+
+- Use gradient based NN to optimize the prediction
+
+Create training set of bigrams
+
+```{python}
+# xs are inputs
+# ys are outputs (correct next character in the sequence)
+xs, ys = [], []
+
+for w in words[:1]:
+    chs = ['.'] + list(w) + ['.']
+    for ch1, ch2 in zip(chs, chs[1:]):
+        ix1 = stoi[ch1]
+        ix2 = stoi[ch2]
+        xs.append(ix1)
+        ys.append(ix2)
+
+xs = torch.tensor(xs)
+ys = torch.tensor(ys)
+
+xs
+```
+
+The pairs of xs and ys are "high probability" combinations.
+
+Integers are not useful for NNs because of the multiplicative nature of NN.
+
+- Use one-hot encoding instead
+
+```{python}
+xenc = F.one_hot(xs, num_classes = 27)
+xenc
+```
+
+```{python}
+xenc.shape
+plt.figure()
+plt.imshow(xenc)
+```
+
+Check type.
+
+```{python}
+xenc.dtype
+```
+
+We want float, not int for the NN.
+
+```{python}
+xenc = F.one_hot(xs, num_classes = 27).float()
+xenc.dtype
+```
+
+Set up neuron 1, initial weights.
+
+```{python}
+W = torch.randn((27, 27))
+W
+```
+
+Matrix multiplication will feed all weights and data into the neurons at once.
+
+```{python}
+# (5, 27) @ (27, 27) results in (5, 27)
+xenc @ W
+```
+
+For each of 27 neurons, what is the firing rate of each neuron on each of the data inputs
+
+e.g., 14th input and 4th output:
+
+```{python}
+(xenc @ W)[3, 13]
+```
+
+We will use a linear model (no tanh, no weights, no bias).
+
+- NN will output log-counts
+- Exponentiate those to get counts
+
+Element-wise exponentiation gives the equivalent of counts (positive, proportional to the expected counts):
+
+```{python}
+logits = xenc @ W
+counts = logits.exp()
+probs = counts / counts.sum(dim=1, keepdims=True)
+probs[0].sum()
+```
+
+Example 'emma': how likely is each character to come next
+
+```{python}
+probs[0]
+```
+
+## Putting it together
+
+Forward pass (everything is differentiable):
+
+```{python}
+xs
+```
+
+```{python}
+ys
+```
+
+```{python}
+# Randomly initialize using torch generator
+g = torch.Generator().manual_seed(2147483647)
+W = torch.randn((27, 27), generator = g)
+```
+
+The last two lines are *softmax* activation function:
+
+- Exponentiate
+- Sum
+- Normalize
+
+Puts outputs on a probability scale.
+
+```{python}
+xenc = F.one_hot(xs, num_classes = 27).float()
+logits = xenc @ W
+counts = logits.exp()
+probs = counts / counts.sum(dim = 1, keepdims = True)
+```
+
+```{python}
+probs.shape
+```
+
+All in one
+
+```{python}
+nlls = torch.zeros(5)
+for ii in range(5):
+    # iith bigram:
+    x = xs[ii].item() # input character index
+    y = ys[ii].item() # label character index
+    print('-------')
+    print(f'bigram example {ii + 1}: {itos[x]}{itos[y]} (indexes {x},{y})')
+    print('input to the neural net:', x)
+    print('output probabilities of the neural net:', probs[ii])
+    print('actual next character:', y)
+    p = probs[ii, y]
+    print('probability assigned by the net to the correct character', p.item())
+    logp = torch.log(p)
+    print('log-likelihood:', logp.item())
+    nll = -logp
+    print('negative log likelihood:', nll)
+    nlls[ii] = nll
+
+print('=========')
+print('average negative log-likelihood (loss) =', nlls.mean().item())
+```
+
+With the random weight, these bigrams are pretty unlikely (1-7%).
+
+Minimize the loss by tuning the weights:
+
+- Single linear layer
+- Softmax
+
+```{python}
+# Random initialization
+g = torch.Generator().manual_seed(2147483647)
+W = torch.randn((27, 27), generator = g, requires_grad = True)
+```
+
+```{python}
+# Forward pass
+xenc = F.one_hot(xs, num_classes = 27).float()
+logits = xenc @ W
+counts = logits.exp()
+probs = counts / counts.sum(dim = 1, keepdims = True)
+loss = -probs[torch.arange(5), ys].log().mean()
+```
+
+Backward pass. The full computational graph is retained for the calculations above. `.backward()` figures out the differentation.
+
+```{python}
+# Reset gradients
+W.grad = None
+
+loss.backward()
+```
+
+Gradient information:
+
+```{python}
+W.grad
+```
+
+Update:
+
+```{python}
+W.data += -0.1 * W.grad
+```
+
+## Full example
+
+```{python}
+# Dataset
+xs, ys = [], []
+
+for w in words:
+    chs = ['.'] + list(w) + ['.']
+    for ch1, ch2 in zip(chs, chs[1:]):
+        ix1 = stoi[ch1]
+        ix2 = stoi[ch2]
+        xs.append(ix1)
+        ys.append(ix2)
+
+xs = torch.tensor(xs)
+ys = torch.tensor(ys)
+num = xs.nelement()
+print('number of examples:', num)
+
+g = torch.Generator().manual_seed(2147483647)
+W = torch.randn((27, 27), generator = g, requires_grad = True)
+```
+
+We should get to loss ~2.45, here by gradient based optimization. That's what we found earlier by direct counting, because this is a 1-layer, linear model.
+
+```{python}
+# Gradient descent
+
+for k in range(200):
+    # Forward pass
+    xenc = F.one_hot(xs, num_classes = 27).float()
+    logits = xenc @ W
+    counts = logits.exp()
+    probs = counts / counts.sum(dim = 1, keepdims = True)
+    loss = -probs[torch.arange(num), ys].log().mean() + 0.01 * (W**2).mean()
+    print(loss.item())
+
+    # Backward pass
+    W.grad = None
+    loss.backward()
+
+    # Update
+    W.data += -50.0 * W.grad
+```
+
+## Expanding the NN
+
+- No obvious way to scale the simple bigram approach to keep track of more than 1 neighbor character.
+- Matrix multiplication of `xenc @ W` actually just takes the one-hot encoded row of W, because of 0s and 1s.
+- If W is all zeros, this works like a smoother.
+    - Regularization: `+ 0.01 * (W**2).mean()`
+
+
+## Sampling from the model
+
+```{python}
+g = torch.Generator().manual_seed(2147483647)
+
+for ii in range(5):
+    out = []
+    ix = 0
+    while True:
+        xenc = F.one_hot(torch.tensor([ix]), num_classes=27).float()
+        logits = xenc @ W
+        counts = logits.exp()
+        p = counts / counts.sum(dim = 1, keepdims = True)
+
+        ix = torch.multinomial(p, num_samples = 1, replacement = True,
+                               generator = g).item()
+        out.append(itos[ix])
+        if ix == 0:
+            break
+    print(''.join(out))
+
+```
