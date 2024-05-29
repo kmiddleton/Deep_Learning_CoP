@@ -4,5 +4,16 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"cSpell.words": [
+			"Bigram",
+			"bigrams",
+			"keepdims",
+			"logits",
+			"multinomial",
+			"probs",
+			"randn",
+			"tolist"
+		]
+	}
 }
