@@ -502,7 +502,7 @@ Set up neuron 1, initial weights.
 
 ```{python}
 W = torch.randn((27, 27))
-W
+W[:5, :5]
 ```
 
 Matrix multiplication will feed all weights and data into the neurons at once.
@@ -636,7 +636,7 @@ loss.backward()
 Gradient information:
 
 ```{python}
-W.grad
+W.grad[:5, :5]
 ```
 
 Update:
@@ -680,7 +680,8 @@ for k in range(200):
     counts = logits.exp()
     probs = counts / counts.sum(dim = 1, keepdims = True)
     loss = -probs[torch.arange(num), ys].log().mean() + 0.01 * (W**2).mean()
-    print(loss.item())
+    if (k + 1) % 10 == 0:
+      print(f'epoch: {k + 1}\tloss: {loss.item():.4f}')
 
     # Backward pass
     W.grad = None
