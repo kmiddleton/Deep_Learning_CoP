@@ -1,0 +1,220 @@
+---
+title: "Multilayer Perceptrons"
+format: html
+---
+
+Previous
+
+- Prediction of a single character from the last character
+- Predictions are not very good
+- Using more than one character causes the number of possibilities to grow exponentially (2 characters = ~700; 3 characters = ~27000)
+
+MLP (Bengio et al., 2003)
+
+- Associate each word in the dictionary with a ~30 dimensional feature vector
+    - Assign randomly at first
+    - Tune via backpropagation
+- Express the joint probability function of word sequences in terms of feature vectors
+- Learn simultaneously the word feature vectors and the parameters of the probability function
+- Maximize the log-likelihood of the training data
+
+Workings e.g. for 3 words
+
+- ~90 dimensional input laye
+- Hidden layer size is determined automatically as a hyperparameter
+- Output layer is the same size as the dictionary (~17,000)
+
+```{python}
+import torch
+import torch.nn.functional as F
+import matplotlib.pyplot as plt
+%matplotlib inline
+```
+
+Read in all the names
+
+```{python}
+words = open('names.txt', 'r').read().splitlines()
+words[:8]
+```
+
+Check
+
+```{python}
+len(words)
+```
+
+Build the vocabulary of characters and mappings to/from integers
+
+```{python}
+chars = sorted(list(set(''.join(words))))
+stoi = {s:i+1 for i, s in enumerate(chars)}
+stoi['.'] = 0
+itos = {i:s for s, i in stoi.items()}
+print(itos)
+```
+
+Build the dataset
+
+```{python}
+# Number of characters to look at. Here predict the 4th character, given 3
+block_size = 3
+
+# Empty lists for input and output
+X, Y = [], []
+
+for w in words[:5]:
+    print(w)
+    context = [0] * block_size # Padded context of 0 tokens, this will use a rolling window of context
+
+    for ch in w + '.':
+        ix = stoi[ch]
+        X.append(context)
+        Y.append(ix)
+        print(''.join(itos[i] for i in context), '--->', itos[ix])
+        context = context[1:] + [ix] # crop and append
+
+X = torch.tensor(X)
+Y = torch.tensor(Y)
+```
+
+Sizes of the datasets
+
+```{python}
+X.shape, X.dtype, Y.shape, Y.dtype
+```
+
+`torch.Size([32, 3])`: 32 examples of 3 characters
+
+Build the embeddings in a 2D space
+
+```{python}
+C = torch.randn((27, 2))
+```
+
+Example embedding an integer 5
+
+```{python}
+C[5]
+```
+
+```{python}
+F.one_hot(torch.tensor(5), num_classes = 27)
+```
+
+Multiply one-hot by the column vector C to get the same result.
+
+- This is like a 1st layer of the NN
+
+```{python}
+F.one_hot(torch.tensor(5), num_classes = 27).float() @ C
+```
+
+Indexing is faster. Use embedding tables.
+
+- Pytorch can index on a list or integer tensor or multidimensional tensor of integers
+
+```{python}
+C[[1, 2, 3]]
+```
+
+```{python}
+C[torch.tensor([1, 2, 3])]
+```
+
+Use the X data for embedding:
+
+```{python}
+C[X].shape
+```
+
+32 x 3 is the original shape of `X`. For each we return the 2D from `C`.
+
+```{python}
+emb = C[X]
+emb.shape
+```
+
+Initialize the weights. Need to reshape the embeddings to be 32 x 6 so that the matrix multiplication will work.
+
+```{python}
+W1 = torch.randn((6, 100))
+b1 = torch.randn(100)
+```
+
+Different ways to reshape tensors in torch.
+
+- `cat()`
+
+```{python}
+# 32 X 2 embeddings for the first letter
+emb[:, 0, :]
+```
+
+Concatenate. This is not generalizeable
+
+```{python}
+torch.cat([emb[:, 0, :], emb[:, 1, :], emb[:, 2, :]], 1).shape
+```
+
+`unbind()` removes a tensor dimension. Gives a list of tensors.
+
+```{python}
+torch.unbind(emb, 1)
+```
+
+```{python}
+torch.cat(torch.unbind(emb, 1), 1).shape
+```
+
+`view()` is very efficient because it can change the underlying shape of a 1D tensor. The `storage()` is the same, but the 1D represenation is different.
+
+```{python}
+emb.view(32, 6) == torch.cat(torch.unbind(emb, 1), 1)
+```
+
+Back to the hidden states.
+
+- `-1` causes pytorch to infer the correct dimension
+
+```{python}
+h = torch.tanh(emb.view(-1, 6) @ W1 + b1)
+```
+
+Need to make sure the broadcasting for `b1` works correctly.
+
+```{python}
+h.shape
+```
+
+Create the final layer. `h` is 100, so `W1` has dimensions of 100. 27 letters to output.
+
+```{python}
+W2 = torch.randn((100, 27))
+b2 = torch.randn(27)
+logits = h @ W2 + b2
+logits.shape
+```
+
+Convert back to probability
+
+```{python}
+counts = logits.exp()
+prob = counts / counts.sum(1, keepdim=True)
+prob.shape
+```
+
+Now `Y` comes in
+
+```{python}
+loss = -prob[torch.arange(32), Y].log().mean()
+```
+
+## Combine everything
+
+```{python}
+g = torch.Generator().manual_seed(2147483647)
+C = torch.randn((27, 2), generator=g)
+W1 = torch.randn((6, 100), generator=g)
+b1 = torch.randn(100)
+```
