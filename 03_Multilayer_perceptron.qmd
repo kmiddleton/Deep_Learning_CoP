@@ -28,6 +28,8 @@ Workings e.g. for 3 words
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
+import random
+
 %matplotlib inline
 ```
 
@@ -213,8 +215,511 @@ loss = -prob[torch.arange(32), Y].log().mean()
 ## Combine everything
 
 ```{python}
+# Number of characters to look at. Here predict the 4th character, given 3
+block_size = 3
+
+# Empty lists for input and output
+X, Y = [], []
+
+for w in words:
+    # print(w)
+    context = [0] * block_size # Padded context of 0 tokens, this will use a rolling window of context
+
+    for ch in w + '.':
+        ix = stoi[ch]
+        X.append(context)
+        Y.append(ix)
+        # print(''.join(itos[i] for i in context), '--->', itos[ix])
+        context = context[1:] + [ix] # crop and append
+
+X = torch.tensor(X)
+Y = torch.tensor(Y)
+X.shape, Y.shape
+```
+
+```{python}
 g = torch.Generator().manual_seed(2147483647)
 C = torch.randn((27, 2), generator=g)
 W1 = torch.randn((6, 100), generator=g)
-b1 = torch.randn(100)
+b1 = torch.randn(100, generator=g)
+W2 = torch.randn((100, 27), generator=g)
+b2 = torch.randn(27, generator=g)
+parameters = [C, W1, b1, W2, b2]
+
+for p in parameters:
+    p.requires_grad = True
+```
+
+Number of parameters in total
+
+```{python}
+sum(p.nelement() for p in parameters)
+```
+
+```{python}
+# emb = C[X] # (32, 3, 2)
+# h = torch.tanh(emb.view(-1, 6) @ W1 + b1) # (32, 100)
+# logits = h @ W2 + b2 # (32, 27)
+# counts = logits.exp()
+# prob = counts / counts.sum(1, keepdim=True)
+# loss = -prob[torch.arange(32), Y].log().mean()
+# loss
+```
+
+This is just classification. So we can use `cross_entropy()` to calculate the loss instead.
+
+- Pytorch does not create all new tensors in memory (efficient forward pass)
+- Calculations in "fused kernel"
+- Efficient backpropagation through simpler math
+- More numerically well-behaved (numerical overflow for large logit values)
+
+```{python}
+# F.cross_entropy(logits, Y)
+```
+
+```{python}
+for _ in range(10):
+    # Forward pass
+    emb = C[X] # (32, 3, 2)
+    h = torch.tanh(emb.view(-1, 6) @ W1 + b1) # (32, 100)
+    logits = h @ W2 + b2 # (32, 27)
+    loss = F.cross_entropy(logits, Y)
+    print(loss.item())
+
+    # Backward pass
+    for p in parameters:
+        p.grad = None # initialize to 0
+    loss.backward()
+
+    # Update
+    for p in parameters:
+        p.data += -0.1 * p.grad
+
+```
+
+For the first 5 examples, we only have 32 examples and 3481 parameters. So we are overfitting. We can't get the loss to 0 because `...` is trained to match several different 1st letters.
+
+With the full data set this runs fairly slowly.
+
+Implement minibatch updating
+
+```{python}
+torch.randint(0, X.shape[0], (32,))
+```
+
+Approximate gradient with more steps is more efficient than the full gradient for few steps.
+
+```{python}
+for _ in range(1000):
+    # Minibatch construct
+    ix = torch.randint(0, X.shape[0], (32,))
+
+    # Forward pass
+    emb = C[X[ix]] # (32, 3, 2)
+    h = torch.tanh(emb.view(-1, 6) @ W1 + b1) # (32, 100)
+    logits = h @ W2 + b2 # (32, 27)
+    loss = F.cross_entropy(logits, Y[ix])
+    print(loss.item())
+
+    # Backward pass
+    for p in parameters:
+        p.grad = None # initialize to 0
+    loss.backward()
+
+    # Update
+    for p in parameters:
+        p.data += -0.1 * p.grad
+```
+
+How to determine the learning rate?
+
+Look between -1 and -0.001 but use `linspace` and exponentals
+
+```{python}
+lre = torch.linspace(-3, 0, 1000)
+lrs = 10**lre
+```
+
+```{python}
+g = torch.Generator().manual_seed(2147483647)
+C = torch.randn((27, 2), generator=g)
+W1 = torch.randn((6, 100), generator=g)
+b1 = torch.randn(100, generator=g)
+W2 = torch.randn((100, 27), generator=g)
+b2 = torch.randn(27, generator=g)
+parameters = [C, W1, b1, W2, b2]
+
+for p in parameters:
+    p.requires_grad = True
+
+# Keep track of values
+lr_ii = []
+loss_ii = []
+
+for ii in range(1000):
+    # Minibatch construct
+    ix = torch.randint(0, X.shape[0], (32,))
+
+    # Forward pass
+    emb = C[X[ix]] # (32, 3, 2)
+    h = torch.tanh(emb.view(-1, 6) @ W1 + b1) # (32, 100)
+    logits = h @ W2 + b2 # (32, 27)
+    loss = F.cross_entropy(logits, Y[ix])
+    print(loss.item())
+
+    # Backward pass
+    for p in parameters:
+        p.grad = None # initialize to 0
+    loss.backward()
+
+    # Update
+    lr = lrs[ii]
+    for p in parameters:
+        p.data += -lr * p.grad
+    
+    # Keep track of stats
+    lr_ii.append(lre[ii])
+    loss_ii.append(loss.item())
+```
+
+
+```{python}
+plt.plot(lr_ii, loss_ii)
+```
+
+Good learning rate is near the low point (~ -0.7).
+
+Set learning rate to 0.1
+
+```{python}
+g = torch.Generator().manual_seed(2147483647)
+C = torch.randn((27, 2), generator=g)
+W1 = torch.randn((6, 100), generator=g)
+b1 = torch.randn(100, generator=g)
+W2 = torch.randn((100, 27), generator=g)
+b2 = torch.randn(27, generator=g)
+parameters = [C, W1, b1, W2, b2]
+
+for p in parameters:
+    p.requires_grad = True
+
+# Keep track of values
+lr_ii = []
+loss_ii = []
+
+for ii in range(10000):
+    # Minibatch construct
+    ix = torch.randint(0, X.shape[0], (32,))
+
+    # Forward pass
+    emb = C[X[ix]] # (32, 3, 2)
+    h = torch.tanh(emb.view(-1, 6) @ W1 + b1) # (32, 100)
+    logits = h @ W2 + b2 # (32, 27)
+    loss = F.cross_entropy(logits, Y[ix])
+
+    # Backward pass
+    for p in parameters:
+        p.grad = None # initialize to 0
+    loss.backward()
+
+    # Update
+    # lr = lrs[ii]
+    lr = 0.1
+    for p in parameters:
+        p.data += -lr * p.grad
+    
+    # Keep track of stats
+    # lr_ii.append(lre[ii])
+    # loss_ii.append(loss.item())
+
+print(loss.item())
+
+```
+
+Run 2 x and check, then lower learning rate by 10x and rerun a few times.
+
+```{python}
+emb = C[X] # (32, 3, 2)
+h = torch.tanh(emb.view(-1, 6) @ W1 + b1) # (32, 100)
+logits = h @ W2 + b2 # (32, 27)
+loss = F.cross_entropy(logits, Y)
+loss
+```
+
+As the model gets bigger, loss on the training set will decrease.
+
+## Split into train, dev/validation, test
+
+```{python}
+def build_dataset(words):
+    block_size = 3
+    X, Y = [], []
+    for w in words:
+        context = [0] * block_size
+        for ch in w + '.':
+            ix = stoi[ch]
+            X.append(context)
+            Y.append(ix)
+            context = context[1:] + [ix] # crop and append
+
+    X = torch.tensor(X)
+    Y = torch.tensor(Y)
+    print(X.shape, Y.shape)
+    return X, Y
+
+random.seed(42)
+random.shuffle(words)
+n1 = int(0.8 * len(words))
+n2 = int(0.9 * len(words))
+
+Xtr, Ytr = build_dataset(words[:n1])
+Xdev, Ydev = build_dataset(words[n1:n2])
+Xte, Yte = build_dataset(words[n2:])
+```
+
+Train on `Xtr` and `Ytr`:
+
+```{python}
+g = torch.Generator().manual_seed(2147483647)
+C = torch.randn((27, 2), generator=g)
+W1 = torch.randn((6, 100), generator=g)
+b1 = torch.randn(100, generator=g)
+W2 = torch.randn((100, 27), generator=g)
+b2 = torch.randn(27, generator=g)
+parameters = [C, W1, b1, W2, b2]
+
+for p in parameters:
+    p.requires_grad = True
+
+# Keep track of values
+lr_ii = []
+loss_ii = []
+
+for ii in range(40000):
+    # Minibatch construct
+    ix = torch.randint(0, Xtr.shape[0], (32,))
+
+    # Forward pass
+    emb = C[Xtr[ix]] # (32, 3, 2)
+    h = torch.tanh(emb.view(-1, 6) @ W1 + b1) # (32, 100)
+    logits = h @ W2 + b2 # (32, 27)
+    loss = F.cross_entropy(logits, Ytr[ix])
+
+    # Backward pass
+    for p in parameters:
+        p.grad = None # initialize to 0
+    loss.backward()
+
+    # Update
+    lr = 0.1
+    for p in parameters:
+        p.data += -lr * p.grad
+    
+print(loss.item())
+```
+
+Training loss
+
+```{python}
+emb = C[Xtr] # (32, 3, 2)
+h = torch.tanh(emb.view(-1, 6) @ W1 + b1) # (32, 100)
+logits = h @ W2 + b2 # (32, 27)
+loss = F.cross_entropy(logits, Ytr)
+loss
+```
+
+Dev loss
+
+```{python}
+emb = C[Xdev] # (32, 3, 2)
+h = torch.tanh(emb.view(-1, 6) @ W1 + b1) # (32, 100)
+logits = h @ W2 + b2 # (32, 27)
+loss = F.cross_entropy(logits, Ydev)
+loss
+```
+
+Training loss ~= Dev loss, so the network is underfitting. We can make it bigger.
+
+- Make the tanh layer 300
+
+```{python}
+g = torch.Generator().manual_seed(2147483647)
+C = torch.randn((27, 2), generator=g)
+W1 = torch.randn((6, 300), generator=g)
+b1 = torch.randn(300, generator=g)
+W2 = torch.randn((300, 27), generator=g)
+b2 = torch.randn(27, generator=g)
+parameters = [C, W1, b1, W2, b2]
+
+for p in parameters:
+    p.requires_grad = True
+
+print(f'Network size: {sum(p.nelement() for p in parameters)}')
+```
+
+```{python}
+# Keep track of values
+lr_ii = []
+loss_ii = []
+step_ii = []
+
+for ii in range(30000):
+    # Minibatch construct
+    ix = torch.randint(0, Xtr.shape[0], (32,))
+
+    # Forward pass
+    emb = C[Xtr[ix]] # (32, 3, 2)
+    h = torch.tanh(emb.view(-1, 6) @ W1 + b1) # (32, 100)
+    logits = h @ W2 + b2 # (32, 27)
+    loss = F.cross_entropy(logits, Ytr[ix])
+
+    # Backward pass
+    for p in parameters:
+        p.grad = None # initialize to 0
+    loss.backward()
+
+    # Update
+    lr = 0.1
+    for p in parameters:
+        p.data += -lr * p.grad
+    
+    # Keep track of stats
+    step_ii.append(ii)
+    loss_ii.append(loss.item())
+
+print(loss.item())
+plt.plot(step_ii, loss_ii)
+```
+
+Training loss
+
+```{python}
+emb = C[Xtr] # (32, 3, 2)
+h = torch.tanh(emb.view(-1, 6) @ W1 + b1) # (32, 100)
+logits = h @ W2 + b2 # (32, 27)
+loss = F.cross_entropy(logits, Ytr)
+loss
+```
+
+Dev loss
+
+```{python}
+emb = C[Xdev] # (32, 3, 2)
+h = torch.tanh(emb.view(-1, 6) @ W1 + b1) # (32, 100)
+logits = h @ W2 + b2 # (32, 27)
+loss = F.cross_entropy(logits, Ydev)
+loss
+```
+
+Visualize the embedding layers
+
+```{python}
+plt.figure(figsize=(8,8))
+plt.scatter(C[:, 0].data, C[:, 1].data, s = 200)
+for i in range(C.shape[0]) :
+    plt.text(C[i, 0].item(), C[i, 1].item(), itos[i],
+             ha = "center", va = "center", color = "white")
+plt.grid('minor')
+```
+
+## Scale the embedding layer
+
+```{python}
+g = torch.Generator().manual_seed(2147483647)
+C = torch.randn((27, 10), generator=g)
+W1 = torch.randn((30, 200), generator=g)
+b1 = torch.randn(200, generator=g)
+W2 = torch.randn((200, 27), generator=g)
+b2 = torch.randn(27, generator=g)
+parameters = [C, W1, b1, W2, b2]
+
+for p in parameters:
+    p.requires_grad = True
+
+print(f'Network size: {sum(p.nelement() for p in parameters)}')
+```
+
+```{python}
+# Keep track of values
+lr_ii = []
+loss_ii = []
+step_ii = []
+```
+
+Adaptive learning rate
+
+```{python}
+for ii in range(200000):
+    # Minibatch construct
+    ix = torch.randint(0, Xtr.shape[0], (32,))
+
+    # Forward pass
+    emb = C[Xtr[ix]] # (32, 3, 2)
+    h = torch.tanh(emb.view(-1, 30) @ W1 + b1) # (32, 100)
+    logits = h @ W2 + b2 # (32, 27)
+    loss = F.cross_entropy(logits, Ytr[ix])
+
+    # Backward pass
+    for p in parameters:
+        p.grad = None # initialize to 0
+    loss.backward()
+
+    # Update
+    lr = 0.1 if ii < 100000 else 0.01
+    for p in parameters:
+        p.data += -lr * p.grad
+    
+    # Keep track of stats
+    step_ii.append(ii)
+    loss_ii.append(loss.log10().item())
+
+print(loss.item())
+```
+
+```{python}
+plt.figure(figsize=(8,8))
+plt.plot(step_ii, loss_ii)
+```
+
+Training loss
+
+```{python}
+emb = C[Xtr] # (32, 3, 2)
+h = torch.tanh(emb.view(-1, 30) @ W1 + b1)
+logits = h @ W2 + b2 
+loss = F.cross_entropy(logits, Ytr)
+loss
+```
+
+Dev loss
+
+```{python}
+emb = C[Xdev] # (32, 3, 2)
+h = torch.tanh(emb.view(-1, 30) @ W1 + b1)
+logits = h @ W2 + b2 
+loss = F.cross_entropy(logits, Ydev)
+loss
+```
+
+Sample from model
+
+```{python}
+g = torch.Generator().manual_seed(2147483647 + 10)
+
+for _ in range(200):
+    out = []
+    context = [0] * block_size
+
+    while True:
+        emb = C[torch.tensor([context])]
+        h = torch.tanh(emb.view(1, -1) @ W1 + b1)
+        logits = h @ W2 + b2
+        probs = F.softmax(logits, dim = 1)
+        ix = torch.multinomial(probs, num_samples=1, generator=g).item()
+        context = context[1:] + [ix]
+        out.append(ix)
+        if ix == 0:
+            break
+    print(''.join(itos[i] for i in out))
+
 ```
