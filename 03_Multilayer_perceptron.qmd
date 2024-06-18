@@ -333,7 +333,7 @@ for _ in range(1000):
 
 How to determine the learning rate?
 
-Look between -1 and -0.001 but use `linspace` and exponentals
+Look between -1 and -0.001 but use `linspace` and exponentials
 
 ```{python}
 lre = torch.linspace(-3, 0, 1000)
