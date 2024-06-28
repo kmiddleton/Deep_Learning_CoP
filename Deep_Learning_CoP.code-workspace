@@ -10,13 +10,26 @@
 			"bigram",
 			"Bigram",
 			"bigrams",
+			"bnbias",
+			"bngain",
+			"bnmean",
+			"bnstd",
+			"cmap",
+			"emb",
+			"embcat",
+			"hpreact",
+			"imshow",
+			"itos",
 			"keepdims",
 			"logits",
+			"makemore",
 			"multinomial",
 			"probs",
 			"randn",
 			"statsmodels",
-			"tolist"
+			"tolist",
+			"Xdev",
+			"Ydev"
 		]
 	}
 }
