@@ -13,7 +13,7 @@ conda create --name deeplearn python=3.11 ipython ipykernel numpy matplotlib pyt
 pip install graphviz
 
 # MacOS
-conda create --name deeplearn python=3.11 numpy matplotlib pytorch::pytorch torchvision torchaudio -c pytorch
+conda create --name torch pandas seaborn statsmodels yaml pyyaml nbclient nbformat ipykernel numpy matplotlib pytorch::pytorch torchvision torchaudio -c pytorch
 pip install graphviz
 
 # Linux (needed libmamba to solve this env: https://www.anaconda.com/blog/a-faster-conda-for-a-growing-community)
