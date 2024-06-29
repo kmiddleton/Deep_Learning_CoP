@@ -21,7 +21,10 @@ conda create --name deeplearn python=3.11 ipython ipykernel numpy matplotlib pyt
 pip install graphviz
 
 # For VSCode rendering with Quarto
-conda install yaml pyyaml nbclient nbformat
+conda install yaml pyyaml nbclient nbformat ipykernel
+
+# For "traitlets - ERROR - Kernel died while waiting for execute reply." error
+python -m ipykernel install --user
 
 # Conda envs with quarto
 # https://thedatasavvycorner.com/blogs/08-quarto-conda-env
