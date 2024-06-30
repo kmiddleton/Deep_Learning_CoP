@@ -305,7 +305,7 @@ $$
 \frac{dz}{dx} = \frac{dz}{dy} \cdot \frac{dy}{dx}
 $$
 
- Gradient gives you the power to influence the output.
+Gradient gives you the power to influence the output.
 
 
 ## Back-propagation through a neuron
