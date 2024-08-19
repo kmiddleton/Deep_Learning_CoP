@@ -1,5 +1,6 @@
 ---
 title: "Multilayer Perceptrons"
+subject: "Building makemore part 2"
 format: html
 ---
 

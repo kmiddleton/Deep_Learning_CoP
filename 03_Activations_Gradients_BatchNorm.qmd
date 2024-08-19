@@ -1,5 +1,6 @@
 ---
 title: "Activations, Gradients, BatchNorm"
+subtitle: "Building makemore part 3"
 format: html
 ---
 
