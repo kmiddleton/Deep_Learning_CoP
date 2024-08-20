@@ -10,6 +10,8 @@ https://github.com/karpathy/nn-zero-to-hero/blob/master/lectures/makemore/makemo
 
 https://karpathy.ai/zero-to-hero.html
 
+https://jacobwashburn-usda.github.io/LabProtocols/posts/DeepLearningCommunityofPractice/
+
 
 ```{python}
 import torch
