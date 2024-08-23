@@ -1,6 +1,10 @@
 # Setup
 
-# Use libmamba, which seems to handle solving the environment better
+# Use mambaforge instead of anaconda/miniconda
+https://conda-forge.org/miniforge/
+
+# Or if you already have anaconda or miniconda, 
+# use libmamba, which seems to handle solving the environment better
 conda install -n base conda-libmamba-solver
 conda config --set solver libmamba
 
@@ -12,11 +16,11 @@ pip install graphviz
 conda create --name deeplearn python=3.11 ipython ipykernel numpy matplotlib pytorch torchvision torchaudio cpuonly -c pytorch
 pip install graphviz
 
-# MacOS
+# MacOS (Apple silicon)
 conda create --name deeplearn pandas plotnine scikit-learn statsmodels seaborn statsmodels yaml pyyaml nbclient nbformat ipykernel numpy matplotlib pytorch::pytorch torchvision torchaudio -c pytorch
 pip install graphviz
 
-# Linux (needed libmamba to solve this env: https://www.anaconda.com/blog/a-faster-conda-for-a-growing-community)
+# Linux (needed libmamba to solve this environment)
 conda create --name deeplearn python=3.11 ipython ipykernel numpy matplotlib pytorch torchvision torchaudio cpuonly -c pytorch
 pip install graphviz
 
