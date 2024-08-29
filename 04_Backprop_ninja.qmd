@@ -79,8 +79,10 @@ We have trained the MLP with good loss
 - What if backprop doesn't ["just work"](https://karpathy.medium.com/yes-you-should-understand-backprop-e2f06eab496b?)
     -  Zero derivatives in sigmoid or ReLU activations ("dead neurons")
 
-Function to compare manual gradients to pytorch gradients
+Function to compare manual gradients to pytorch gradients:
 
+- Gradients that we are manually calculating
+- Gradients that pytorch is calculating (assumed to be correct)
 
 ```{python}
 def cmp(s, dt, t):
@@ -92,10 +94,11 @@ def cmp(s, dt, t):
 
 # Initialization
 
-- Initialize to small random numbers rather than zero. Zero initialization can mask bad implementation of backward propagation
+- Initialize to small random numbers rather than zero. Zero initialization can mask bad implementation of backward propagation.
+- When everything is zero, the equations simplify
 
 ```{python}
-n_embd = 10 # the dimensionality of the character embedding vectors
+n_embd = 10   # the dimensionality of the character embedding vectors
 n_hidden = 64 # the number of neurons in the hidden layer of the MLP
 
 g = torch.Generator().manual_seed(2147483647) # for reproducibility
@@ -125,3 +128,54 @@ for p in parameters:
   p.requires_grad = True
 ```
 
+```{python}
+batch_size = 32
+n = batch_size # a shorter variable also, for convenience
+
+# construct a minibatch
+ix = torch.randint(0, Xtr.shape[0], (batch_size, ), generator = g)
+Xb, Yb = Xtr[ix], Ytr[ix]  # batch X,Y
+```
+
+# Forward pass
+
+```{python}
+# Forward pass is chunked into smaller steps that can be run backward one step
+# at a time
+
+emb = C[Xb]  # embed the characters into vectors
+embcat = emb.view(emb.shape[0], -1)  # concatenate the vectors
+
+# linear layer 1
+hprebn = embcat @ W1 + b1  # hidden layer preactivation
+
+# batchnorm layer 1
+bnmean1 = 1 / n * hprebn.sum(0, keepdim = True)
+bndiff = hprebn - bnmean1
+bndiff2 = bndiff**2
+bnvar = 1 / (n - 1) * (bndiff2).sum(0, keepdim = True) # Bessel's correction dividing by n - 1
+bnvar_inv = (bnvar + 1e-5)**-0.5
+bnraw = bndiff * bnvar_inv
+hpreact = bngain * bnvar_inv
+
+# non-linearity
+h - torch.tanh(hpreact)  # hidden layer
+
+# linear layer 2
+logits = h @ W2 + b2 # output layer
+
+# cross entropy loss (same as F.cross_entropy(logits, Yb))
+logit_maxes = logits.max(1, keepdim = True).values
+norm_logits = logits - logit_maxes # Subtract max for numerical stability
+counts = norm_logits.exp()
+counts_sum = counts.sum(1, keepdims = True)
+counts_sim_inv = counts_sum**-1  # Needed instead of 1 / counts_sum to get this to be exact
+probs = counts * counts_sim_inv
+logprobs = probs.log()
+loss = -logprobs[range(n), Yb].mean()
+
+# PyTorch backward pass
+for p in parameters:
+  p.grad = None
+for t in [logprobs, probsm ]
+```
