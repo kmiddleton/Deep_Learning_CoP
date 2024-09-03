@@ -17,11 +17,11 @@ conda create --name deeplearn python=3.11 ipython ipykernel numpy matplotlib pyt
 pip install graphviz
 
 # MacOS (Apple silicon)
-conda create --name deeplearn pandas plotnine scikit-learn statsmodels seaborn statsmodels yaml pyyaml nbclient nbformat ipykernel numpy matplotlib pytorch::pytorch torchvision torchaudio -c pytorch
+conda create --name deeplearn pandas plotnine scikit-learn statsmodels seaborn yaml pyyaml nbclient nbformat ipykernel numpy matplotlib pytorch::pytorch torchvision torchaudio -c pytorch
 pip install graphviz
 
 # Linux (needed libmamba to solve this environment)
-conda create --name deeplearn python=3.11 ipython ipykernel numpy matplotlib pytorch torchvision torchaudio cpuonly -c pytorch
+conda create --name deeplearn python=3.11 pandas plotnine scikit-learn statsmodels seaborn yaml pyyaml nbclient nbformat ipython ipykernel numpy matplotlib pytorch torchvision torchaudio cpuonly -c pytorch
 pip install graphviz
 
 # For VSCode rendering with Quarto
