@@ -32,3 +32,5 @@ python -m ipykernel install --user
 
 # Conda envs with quarto
 # https://thedatasavvycorner.com/blogs/08-quarto-conda-env
+
+pip install micrograd
