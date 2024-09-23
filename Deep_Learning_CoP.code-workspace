@@ -57,9 +57,11 @@
 			"traitlets",
 			"Xdev",
 			"xhat",
+			"xlabel",
 			"xmean",
 			"xvar",
-			"Ydev"
+			"Ydev",
+			"ylabel"
 		]
 	}
 }
