@@ -9,19 +9,19 @@ conda install -n base conda-libmamba-solver
 conda config --set solver libmamba
 
 # Windows with GPU
-conda create --name deeplearn python=3.11 plotly::plotly ipython ipykernel numpy matplotlib pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+conda create --name pytorch python=3.11 plotly::plotly ipython ipykernel numpy matplotlib pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 pip install graphviz
 
 # Window without GPU
-conda create --name deeplearn python=3.11 plotly::plotly ipython ipykernel numpy matplotlib pytorch torchvision torchaudio cpuonly -c pytorch
+conda create --name pytorch python=3.11 plotly::plotly ipython ipykernel numpy matplotlib pytorch torchvision torchaudio cpuonly -c pytorch
 pip install graphviz
 
 # MacOS (Apple silicon)
-conda create --name deeplearn plotly::plotly pandas plotnine scikit-learn statsmodels seaborn yaml pyyaml nbclient nbformat ipykernel numpy matplotlib pytorch::pytorch torchvision torchaudio -c pytorch
+conda create --name pytorch plotly::plotly pandas plotnine scikit-learn statsmodels seaborn yaml pyyaml nbclient nbformat ipykernel numpy matplotlib pytorch::pytorch torchvision torchaudio -c pytorch
 pip install graphviz
 
 # Linux (needed libmamba to solve this environment)
-conda create --name deeplearn python=3.11 pandas plotnine scikit-learn statsmodels seaborn yaml pyyaml nbclient nbformat ipython ipykernel numpy matplotlib pytorch torchvision torchaudio cpuonly -c pytorch
+conda create --name pytorch python=3.11 pandas plotnine scikit-learn statsmodels seaborn yaml pyyaml nbclient nbformat ipython ipykernel numpy matplotlib pytorch torchvision torchaudio cpuonly -c pytorch
 pip install graphviz
 
 # For VSCode rendering with Quarto
@@ -34,3 +34,11 @@ python -m ipykernel install --user
 # https://thedatasavvycorner.com/blogs/08-quarto-conda-env
 
 pip install micrograd
+
+# Hellbender
+conda create --name pytorch python=3.11
+conda install yaml pyyaml nbclient nbformat ipykernel
+conda install plotnine scikit-learn statsmodels seaborn numpy matplotlib plotly::plotly pandas  
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+python -m ipykernel install --user --name=pytorch
+
