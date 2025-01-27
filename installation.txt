@@ -17,7 +17,7 @@ conda create --name torch python=3.11 plotly::plotly pandas plotnine scikit-lear
 pip install graphviz
 
 # MacOS (Apple silicon)
-conda create --name torch plotly::plotly pandas plotnine scikit-learn statsmodels seaborn yaml pyyaml nbclient nbformat ipykernel numpy matplotlib pytorch::pytorch torchvision torchaudio -c pytorch
+conda create --name torch plotly::plotly pandas plotnine scikit-learn statsmodels seaborn yaml pyyaml nbclient nbformat ipykernel numpy matplotlib tqdm pytorch::pytorch torchvision torchaudio -c pytorch
 pip install graphviz
 python -m ipykernel install --user
 
