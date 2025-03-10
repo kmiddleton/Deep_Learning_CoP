@@ -1,6 +1,7 @@
 {
   "cSpell.words": [
     "randn",
-    "torchvision"
+    "torchvision",
+    "micrograd"
   ]
 }
